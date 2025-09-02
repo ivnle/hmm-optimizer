@@ -6,7 +6,7 @@ model:
   tokenizer: "meta-llama/Llama-2-7b-hf"
 
 training:
-  learning_rate: 0.4  # AdamW learning rate
+  learning_rate: 0.04  # AdamW learning rate
   weight_decay: 0.1  # AdamW weight decay
   batch_size: 32
   max_seq_length: 64

@@ -6,11 +6,11 @@ model:
   tokenizer: "meta-llama/Llama-2-7b-hf"
 
 training:
-  learning_rate: 0.004  # AdamW learning rate
+  learning_rate: 0.04  # AdamW learning rate
   weight_decay: 0.1  # AdamW weight decay
   batch_size: 32
   max_seq_length: 64
-  n_epochs: 100
+  n_epochs: 20
   param_std: 1.0  # HMM parameter initialization std (ignored for reparameterized model)
 
 reparameterization:
