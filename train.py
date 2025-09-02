@@ -69,10 +69,10 @@ def load_config(config_path):
 
 def prepare_data(config):
     """
-    Load and prepare tiny_shakespeare dataset (all data for training).
+    Load and prepare tiny_shakespeare dataset with train/val split.
     
     Returns:
-        train_loader, vocab_size
+        train_loader, val_loader, vocab_size, tokens_per_epoch
     """
     from transformers import AutoTokenizer
     
@@ -86,11 +86,13 @@ def prepare_data(config):
     # Load dataset
     dataset = load_dataset("karpathy/tiny_shakespeare")
     
-    # Combine train and test text - use all data for training
-    all_text = dataset['train']['text'][0] + ' ' + dataset['test']['text'][0]
+    # Use separate splits for train and validation
+    train_text = dataset['train']['text'][0]
+    val_text = dataset['validation']['text'][0]
     
     # Tokenize using Llama-2 tokenizer
-    all_ids = torch.tensor(tokenizer.encode(all_text), dtype=torch.long)
+    train_ids = torch.tensor(tokenizer.encode(train_text), dtype=torch.long)
+    val_ids = torch.tensor(tokenizer.encode(val_text), dtype=torch.long)
     
     # Create sequences
     seq_len = config['training']['max_seq_length']
@@ -101,14 +103,16 @@ def prepare_data(config):
         sequences = []
         for i in range(0, len(ids) - seq_len, seq_len):
             sequences.append(ids[i:i + seq_len])
-        return torch.stack(sequences)
+        return torch.stack(sequences) if sequences else torch.empty(0, seq_len, dtype=torch.long)
     
-    all_sequences = create_sequences(all_ids, seq_len)
+    train_sequences = create_sequences(train_ids, seq_len)
+    val_sequences = create_sequences(val_ids, seq_len)
     
-    print(f"Total training sequences: {all_sequences.shape}")
+    print(f"Training sequences: {train_sequences.shape}")
+    print(f"Validation sequences: {val_sequences.shape}")
     
     # Calculate tokens per epoch for epoch-based parameters
-    tokens_per_epoch = len(all_sequences) * seq_len
+    tokens_per_epoch = len(train_sequences) * seq_len
     print(f"Tokens per epoch: {tokens_per_epoch:,}")
     
     # Create simple dataset class
@@ -122,10 +126,13 @@ def prepare_data(config):
         def __getitem__(self, idx):
             return {'input_ids': self.sequences[idx]}
     
-    train_dataset = SequenceDataset(all_sequences)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_dataset = SequenceDataset(train_sequences)
+    val_dataset = SequenceDataset(val_sequences)
     
-    return train_loader, vocab_size, tokens_per_epoch
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    
+    return train_loader, val_loader, vocab_size, tokens_per_epoch
 
 
 def create_model(config, vocab_size):
@@ -147,6 +154,34 @@ def create_model(config, vocab_size):
         model = HMM(n_hidden, vocab_size, param_std=param_std)
     
     return model
+
+
+def evaluate(model, val_loader, config):
+    """
+    Evaluate model on validation set.
+    
+    Returns:
+        avg_loss, avg_ppl
+    """
+    model.eval()
+    total_loss = 0
+    n_batches = 0
+    
+    with torch.no_grad():
+        for batch in val_loader:
+            input_ids = batch['input_ids'].cuda() if torch.cuda.is_available() else batch['input_ids']
+            
+            # Use forward algorithm for standard HMM loss
+            loss = model(input_ids)
+            
+            total_loss += loss.item()
+            n_batches += 1
+    
+    avg_loss = total_loss / n_batches if n_batches > 0 else float('inf')
+    avg_ppl = np.exp(avg_loss) if avg_loss < 20 else float('inf')  # Cap to prevent overflow
+    
+    model.train()
+    return avg_loss, avg_ppl
 
 
 def train_epoch(model, train_loader, optimizer, config, 
@@ -264,7 +299,7 @@ def main():
     print(f"Loaded config from {args.config}")
     
     # Prepare data
-    train_loader, vocab_size, tokens_per_epoch = prepare_data(config)
+    train_loader, val_loader, vocab_size, tokens_per_epoch = prepare_data(config)
     
     # Create model
     model = create_model(config, vocab_size)
@@ -384,14 +419,21 @@ def main():
             window_size=window_size
         )
         
+        # Evaluate on validation set
+        val_loss, val_ppl = evaluate(model, val_loader, config)
+        
         print(f"\nEpoch {epoch+1}/{n_epochs} Summary")
-        print(f"  Average Loss: {avg_loss:.4f}")
-        print(f"  Average PPL: {avg_ppl:.2f}")
+        print(f"  Train - Avg Loss: {avg_loss:.4f}, Avg PPL: {avg_ppl:.2f}")
+        print(f"  Valid - Avg Loss: {val_loss:.4f}, Avg PPL: {val_ppl:.2f}")
         print(f"  Total tokens: {token_count:,}")
         
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            print(f"  ✓ New best average loss!")
+        # Check for overfitting
+        if epoch > 0 and val_loss > best_loss * 1.1:  # 10% worse than best
+            print(f"  ⚠ Possible overfitting detected (val loss increasing)")
+        
+        if val_loss < best_loss:
+            best_loss = val_loss
+            print(f"  ✓ New best validation loss!")
         
         # Free teacher memory after LVD phase completes
         if not lvd_phase and teacher is not None:
@@ -404,8 +446,8 @@ def main():
         print("-" * 50)
     
     print("\nTraining complete!")
-    print(f"Best average loss: {best_loss:.4f}")
-    print(f"Best average perplexity: {np.exp(best_loss):.2f}")
+    print(f"Best validation loss: {best_loss:.4f}")
+    print(f"Best validation perplexity: {np.exp(best_loss):.2f}")
 
 
 if __name__ == "__main__":

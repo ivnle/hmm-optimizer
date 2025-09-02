@@ -8,13 +8,13 @@ model:
 training:
   learning_rate: 0.04  # AdamW learning rate
   weight_decay: 0.1  # AdamW weight decay
-  batch_size: 32
+  batch_size: 64
   max_seq_length: 64
   n_epochs: 20
   param_std: 1.0  # HMM parameter initialization std (ignored for reparameterized model)
 
 reparameterization:
-  hidden_dim: 64
+  hidden_dim: 128
   n_layers: 2  # Number of layers in Chiu & Rush MLP (default: 2)
 
 lvd:
@@ -23,5 +23,5 @@ lvd:
   lvd_epochs: 1  # Number of epochs to train with P(O,S)
   # kmeans_tokens: 10_000_000  # Number of tokens for k-means clustering  
   kmeans_epochs: 1  # Number of epochs for k-means clustering
-  hidden_dim: 64  # Will be overridden by reparameterization.hidden_dim
+  hidden_dim: 128  # Will be overridden by reparameterization.hidden_dim
   teacher_checkpoint: TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T
