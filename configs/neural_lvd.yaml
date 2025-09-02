@@ -1,0 +1,27 @@
+# Combined neural reparameterization + LVD - best of both approaches
+# Uses MLP to generate HMM parameters AND teacher model supervision
+
+model:
+  n_hidden_states: 512
+  tokenizer: "meta-llama/Llama-2-7b-hf"
+
+training:
+  learning_rate: 0.004  # AdamW learning rate
+  weight_decay: 0.1  # AdamW weight decay
+  batch_size: 32
+  max_seq_length: 64
+  n_epochs: 100
+  param_std: 1.0  # HMM parameter initialization std (ignored for reparameterized model)
+
+reparameterization:
+  hidden_dim: 64
+  n_layers: 2  # Number of layers in Chiu & Rush MLP (default: 2)
+
+lvd:
+  # Use either tokens OR epochs (not both)
+  # lvd_tokens: 100_000  # Number of tokens to train with P(O,S)
+  lvd_epochs: 1  # Number of epochs to train with P(O,S)
+  # kmeans_tokens: 10_000_000  # Number of tokens for k-means clustering  
+  kmeans_epochs: 1  # Number of epochs for k-means clustering
+  hidden_dim: 64  # Will be overridden by reparameterization.hidden_dim
+  teacher_checkpoint: TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T

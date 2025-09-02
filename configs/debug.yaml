@@ -1,0 +1,28 @@
+# Debug configuration - neural reparameterization without LVD
+# For quick testing
+
+model:
+  n_hidden_states: 512
+  tokenizer: "meta-llama/Llama-2-7b-hf"
+
+training:
+  learning_rate: 0.004  # AdamW learning rate
+  weight_decay: 0.1  # AdamW weight decay
+  batch_size: 32
+  max_seq_length: 64
+  n_epochs: 20
+  param_std: 1.0  # HMM parameter initialization std (smaller = more uniform, e.g., 0.01)
+
+reparameterization:
+  hidden_dim: 64
+  n_layers: 2  # Number of layers in Chiu & Rush MLP (default: 2)
+
+# Enable LVD:
+# lvd:
+#   # Use either tokens OR epochs (not both)
+#   # lvd_tokens: 100_000  # Number of tokens to train with P(O,S)
+#   lvd_epochs: 1  # Number of epochs to train with P(O,S)
+#   # kmeans_tokens: 10_000_000  # Number of tokens for k-means clustering  
+#   kmeans_epochs: 1  # Number of epochs for k-means clustering
+#   hidden_dim: 64
+#   teacher_checkpoint: TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T

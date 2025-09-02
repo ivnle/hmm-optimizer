@@ -1,0 +1,14 @@
+# Baseline HMM configuration - vanilla HMM without neural reparameterization or LVD
+# This serves as the control in our 2x2 experimental matrix
+
+model:
+  n_hidden_states: 512
+  tokenizer: "meta-llama/Llama-2-7b-hf"
+
+training:
+  learning_rate: 0.4  # AdamW learning rate
+  weight_decay: 0.1  # AdamW weight decay
+  batch_size: 32
+  max_seq_length: 64
+  n_epochs: 20
+  param_std: 1.0  # HMM parameter initialization std (smaller = more uniform, e.g., 0.01)
